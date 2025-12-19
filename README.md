@@ -1,7 +1,8 @@
 
 # LSPM - Little Simple Package Manager
 
-LSPM is a lightweight, simple, and fast package manager designed to run on anything (alpine, debian, linux from scratch, buildroot).  
+LSPM is a lightweight, simple, and fast package manager designed to run on anything (alpine, debian, linux from scratch, buildroot).
+
 It supports installing, upgrading, and removing packages, managing multiple repositories, and creating packages with minimal effort.
 
 ---
