@@ -1,0 +1,278 @@
+#!/bin/sh
+
+LSPM_ETC="/etc/lspm"
+LSPM_PACKAGES="$LSPM_ETC/packages"
+INDEX_CACHE="$LSPM_ETC/index_cache"
+REPOS_LIST="$LSPM_ETC/repos.list"
+INSTALLED_LIST="$LSPM_ETC/installed.list"
+DEFAULT_REPO="https://mirror.5136.cloud/mirror/lspm"
+
+mkdir -p "$LSPM_PACKAGES" "$INDEX_CACHE"
+touch "$INSTALLED_LIST"
+
+usage() {
+    echo "LSPM - Little Simple Package Manager"
+    echo
+    echo "Package Commands:"
+    echo "  install <pkg>[=<ver>] ... [-y]       Install packages (alias: add)"
+    echo "  upgrade <pkg> ... [-y]               Upgrade packages (defaults to all installed)"
+    echo "  remove <pkg> ... [-y]                Remove packages (alias: del)"
+    echo "  list                                 List installed packages"
+    echo
+    echo "Repository Commands:"
+    echo "  add-remote <url>                      Add a remote repo (aliases: add-r)"
+    echo "  remove-remote <url>                   Remove a remote repo (aliases: del-r)"
+    echo "  list-remotes                          List all remote repos (aliases: list-r)"
+    echo "  update                                Fetch and merge indexes from all remotes"
+    echo "  set                                   Add default LSPM repo"
+    echo
+    echo "Developer Commands:"
+    echo "  init <package>                        Initialize a new package skeleton"
+    echo "  guide                                 Open LSPM Application Guide"
+    echo
+    echo "- Versioning: install package=<date> or install latest by default"
+}
+
+require_root() {
+    [ "$(id -u)" -ne 0 ] && { echo "This command must be run as root."; exit 1; }
+}
+
+log() {
+    echo "[LSPM] $1"
+}
+
+add_remote() {
+    require_root
+    [ -f "$REPOS_LIST" ] && grep -Fxq "$1" "$REPOS_LIST" && { log "Remote already exists"; return; }
+    echo "$1" >> "$REPOS_LIST"
+    log "Remote $1 added."
+}
+
+remove_remote() {
+    require_root
+    [ ! -f "$REPOS_LIST" ] && { log "No remotes to remove"; return; }
+    grep -vFx "$1" "$REPOS_LIST" > "$REPOS_LIST.tmp" && mv "$REPOS_LIST.tmp" "$REPOS_LIST"
+    log "Remote $1 removed."
+}
+
+list_remotes() {
+    cat "$REPOS_LIST" 2>/dev/null
+}
+
+list_packages() {
+    [ ! -f "$INSTALLED_LIST" ] || cat "$INSTALLED_LIST" || log "No packages installed."
+}
+
+confirm() {
+    [ "$2" = "-y" ] && return
+    echo -n "$1 [y/N]: "
+    read ans
+    case "$ans" in y|Y) return ;; *) log "Aborted."; exit 1 ;; esac
+}
+
+update_index() {
+    require_root
+    rm -f "$INDEX_CACHE"/*
+    merged="$INDEX_CACHE/merged_index.list"
+    touch "$merged"
+    for repo in $(cat "$REPOS_LIST" 2>/dev/null); do
+        log "Fetching index from $repo"
+        wget -q -O "$INDEX_CACHE/temp_index.list" "$repo/index.list" || { log "Failed to fetch $repo/index.list"; continue; }
+        while read -r line; do
+            [ -z "$line" ] && continue
+            case "$line" in \#*) continue ;; esac
+            case "$line" in
+                http*://*) echo "$line" >> "$merged" ;;
+                *) echo "$repo/$line" >> "$merged" ;;
+            esac
+        done < "$INDEX_CACHE/temp_index.list"
+        rm -f "$INDEX_CACHE/temp_index.list"
+    done
+    log "Index updated!"
+}
+
+find_package() {
+    pkg="$1"
+    version="$2"
+    remote_url=""
+    while read line; do
+        [ -z "$line" ] && continue
+        base=$(basename "$line")
+        name=$(basename "$(dirname "$line")")
+        if [ "$name" = "$pkg" ]; then
+            if [ "$version" = "latest" ] || [ -z "$version" ]; then
+                [ "$base" = "latest" ] && { remote_url="$line"; break; }
+            else
+                [ "$base" = "$version" ] && { remote_url="$line"; break; }
+            fi
+        fi
+    done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
+    echo "$remote_url"
+}
+
+resolve_latest_date() {
+    pkg_url="$1"
+    tmp="/tmp/lspm_latest_date.txt"
+    wget -q -O "$tmp" "$pkg_url/date.txt" || { log "Failed to fetch date.txt for latest"; exit 1; }
+    ver=$(cat "$tmp")
+    rm -f "$tmp"
+    echo "$ver"
+}
+
+fetch_install() {
+    pkg_url="${1%/}"
+    tmpfile="/tmp/lspm_install_$(date +%s%N).sh"
+    wget -q -O "$tmpfile" "$pkg_url/install.sh" || { log "Failed to fetch install.sh from $pkg_url/install.sh"; exit 1; }
+    chmod +x "$tmpfile"
+    echo "$tmpfile"
+}
+
+is_installed() {
+    pkg="$1"
+    grep -Fxq "$pkg" "$INSTALLED_LIST" 2>/dev/null
+}
+
+install_package() {
+    require_root
+    pkg_ver="$1"
+    auto_yes="$2"
+    pkg="${pkg_ver%%=*}"
+    ver="${pkg_ver#*=}"
+    if is_installed "$pkg"; then
+        log "$pkg is already installed."
+        return
+    fi
+
+    if [ -z "$ver" ] || [ "$ver" = "$pkg_ver" ]; then
+        latest_url=$(find_package "$pkg" "latest")
+        if [ -n "$latest_url" ]; then
+            ver=$(resolve_latest_date "$latest_url")
+            pkg_url=$(find_package "$pkg" "$ver")
+            [ -z "$pkg_url" ] && { log "Error: Package $pkg version $ver not found"; return 1; }
+        else
+            log "Error: Package $pkg not found in any repo."
+            return 1
+        fi
+    else
+        pkg_url=$(find_package "$pkg" "$ver")
+        [ -z "$pkg_url" ] && { log "Error: Package $pkg version $ver not found"; return 1; }
+    fi
+
+    confirm "Install $pkg version $ver?" "$auto_yes"
+    log "Fetching install script..."
+    install_sh=$(fetch_install "$pkg_url")
+    sh "$install_sh"
+    mkdir -p "$LSPM_PACKAGES/$pkg"
+    echo "$ver" > "$LSPM_PACKAGES/$pkg/.version"
+
+    echo "$pkg" >> "$INSTALLED_LIST"
+    log "$pkg $ver installed!"
+}
+
+upgrade_package() {
+    require_root
+    pkg="$1"
+    auto_yes="$2"
+    [ -d "$LSPM_PACKAGES/$pkg" ] || { log "$pkg is not installed."; return 1; }
+    current_ver=$(cat "$LSPM_PACKAGES/$pkg/.version" 2>/dev/null)
+    pkg_url=$(find_package "$pkg" "latest")
+    [ -z "$pkg_url" ] && { log "Error: Package $pkg not found in index for upgrade."; return 1; }
+    latest_ver=$(resolve_latest_date "$pkg_url")
+    [ "$current_ver" = "$latest_ver" ] && { log "$pkg is already up-to-date ($current_ver)"; return 0; }
+    log "Upgrading $pkg from $current_ver to $latest_ver..."
+    install_package "$pkg=$latest_ver" "$auto_yes"
+}
+
+remove_package() {
+    require_root
+    pkg="$1"
+    auto_yes="$2"
+    confirm "Remove $pkg?" "$auto_yes"
+    ver_file="$LSPM_PACKAGES/$pkg/.version"
+    [ -f "$ver_file" ] && ver=$(cat "$ver_file") || ver=""
+    while read line; do
+        name=$(basename "$(dirname "$line")")
+        base=$(basename "$line")
+        if [ "$name" = "$pkg" ] && [ "$base" = "$ver" ]; then
+            remove_url="$line/remove.sh"
+            if wget -q -O "/tmp/lspm_remove.sh" "$remove_url"; then
+                chmod +x "/tmp/lspm_remove.sh"
+                sh "/tmp/lspm_remove.sh"
+            fi
+        fi
+    done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
+    rm -rf "$LSPM_PACKAGES/$pkg"
+    grep -vFx "$pkg" "$INSTALLED_LIST" > "$INSTALLED_LIST.tmp" && mv "$INSTALLED_LIST.tmp" "$INSTALLED_LIST"
+    log "$pkg removed."
+}
+
+set_default_repo() {
+    require_root
+    add_remote "$DEFAULT_REPO"
+    log "Default LSPM repo added: $DEFAULT_REPO"
+}
+
+dev_init() {
+    require_root
+    pkg="$1"
+    [ -z "$pkg" ] && { echo "Usage: lspm init <package>"; return 1; }
+    today=$(date +%Y-%m-%d)
+    pkg_dir="$LSPM_PACKAGES/$pkg/$today"
+    mkdir -p "$pkg_dir"
+    echo "#!/bin/sh" > "$pkg_dir/install.sh"
+    echo "#!/bin/sh" > "$pkg_dir/remove.sh"
+    chmod +x "$pkg_dir/install.sh" "$pkg_dir/remove.sh"
+    log "Initialized new package skeleton: $pkg ($today)"
+}
+
+dev_guide() {
+    log "Guide: https://github.com/lspm-pkg/lspm"
+}
+
+# POSIX-compliant argument parsing
+cmd="$1"
+shift
+flag=""
+args=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y) flag="-y" ;;
+        *) args="$args $1" ;;
+    esac
+    shift
+done
+
+case "$cmd" in
+    install|add)
+        [ -z "$args" ] && usage && exit 1
+        for pkg in $args; do
+            install_package "$pkg" "$flag"
+        done
+        ;;
+    upgrade)
+        if [ -z "$args" ]; then
+            for pkg in $(cat "$INSTALLED_LIST" 2>/dev/null); do
+                upgrade_package "$pkg" "$flag"
+            done
+        else
+            for pkg in $args; do
+                upgrade_package "$pkg" "$flag"
+            done
+        fi
+        ;;
+    remove|del)
+        [ -z "$args" ] && usage && exit 1
+        for pkg in $args; do
+            remove_package "$pkg" "$flag"
+        done
+        ;;
+    list) list_packages ;;
+    add-remote|add-r) [ -z "$args" ] && usage && exit 1; add_remote "$args" ;;
+    remove-remote|del-r) [ -z "$args" ] && usage && exit 1; remove_remote "$args" ;;
+    list-remotes|list-r) list_remotes ;;
+    update) update_index ;;
+    set) set_default_repo ;;
+    init) dev_init "$args" ;;
+    guide) dev_guide ;;
+    *) usage ;;
+esac
