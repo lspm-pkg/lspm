@@ -202,7 +202,11 @@ remove_package() {
         fi
     done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
     rm -rf "$LSPM_PACKAGES/$pkg"
-    grep -vFx "$pkg" "$INSTALLED_LIST" > "$INSTALLED_LIST.tmp" && mv "$INSTALLED_LIST.tmp" "$INSTALLED_LIST"
+    tmpfile=$(mktemp)
+    while IFS= read -r line; do
+        [ "$line" != "$pkg" ] && echo "$line" >> "$tmpfile"
+    done < "$INSTALLED_LIST"
+    mv "$tmpfile" "$INSTALLED_LIST"
     log "$pkg removed."
 }
 
@@ -229,7 +233,6 @@ dev_guide() {
     log "Guide: https://github.com/lspm-pkg/lspm"
 }
 
-# POSIX-compliant argument parsing
 cmd="$1"
 shift
 flag=""
