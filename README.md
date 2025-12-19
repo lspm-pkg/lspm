@@ -18,10 +18,13 @@ It supports installing, upgrading, and removing packages, managing multiple repo
 ## Installation
 
 ```sh
-curl -fsSL (yeah frick, I havent made that yet, so just wait.) | sh
+# Install
+curl -fsSL https://raw.githubusercontent.com/lspm-pkg/lspm/refs/heads/main/install.sh | sh
 
 # Bootstrap default repo
 lspm set
+
+# Update package list
 lspm update
 ````
 
