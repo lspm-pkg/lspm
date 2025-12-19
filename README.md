@@ -1,17 +1,18 @@
+
 # LSPM - Little Simple Package Manager
 
-LSPM is a lightweight, simple, and fast package manager designed to run on anything (alpine, debian, linux from scratch, buildroot)
+LSPM is a lightweight, simple, and fast package manager designed to run on anything (alpine, debian, linux from scratch, buildroot).  
 It supports installing, upgrading, and removing packages, managing multiple repositories, and creating packages with minimal effort.
 
 ---
 
 ## Features
 
-- Minimal footprint, works with as little as 64MB RAM and tiny CPU cores
-- Multi-repository support with merged index
-- Versioned packages with `latest` support
-- `install.sh` to install your package, Includes running the LSPM nestedly to grab your deps.
-- Swap-friendly, streamable, and highly portable
+> - Minimal footprint, works with as little as 64MB RAM and tiny CPU cores  
+> - Multi-repository support with merged index  
+> - Versioned packages with `latest` support  
+> - `install.sh` to install your package, includes running the LSPM nestedly to grab your deps  
+> - Swap-friendly, streamable, and highly portable  
 
 ---
 
@@ -41,7 +42,7 @@ lspm del/remove <package> [-y]                 # Remove a package
 lspm list                                      # List installed packages
 ```
 
-### Repository Comamnds
+### Repository Commands
 
 ```sh
 lspm add-remote <url>                     # Add a repository (aliases: add-r)
@@ -71,8 +72,8 @@ Every package follows this layout:
     date.txt         # Optional for "latest" versions
 ```
 
-* `latest` versions should include `date.txt` indicating the current version
-* Nested dependencies can be handled by calling LSPM within `install.sh`
+> * `latest` versions should include `date.txt` indicating the current version
+> * Nested dependencies can be handled by calling LSPM within `install.sh`
 
 ---
 
@@ -95,10 +96,6 @@ To create your own package:
 lspm init mypackage      # Creates a skeleton package
 ```
 
-For detailed guidelines, see the development guide (link is broken temp)
+> You can deploy your packages to the default mirror `mirror.5136.cloud` by making a ticket in the 5136.cloud Discord or via the website: [host.5136.cloud](https://host.5136.cloud)
 
----
-
-## Notes
-
-* Use versioning with `package=<YYYY-MM-DD>` or rely on `latest`.
+For detailed guidelines, see the application development guide (link is broken temp).
