@@ -1,2 +1,101 @@
-# lspm
-The little simple package manager
+# LSPM - Little Simple Package Manager
+
+LSPM is a lightweight, simple, and fast package manager designed to run on anything (alpine, debian, linux from scratch, buildroot)
+It supports installing, upgrading, and removing packages, managing multiple repositories, and creating packages with minimal effort.
+
+---
+
+## Features
+
+- Minimal footprint, works with as little as 64MB RAM and tiny CPU cores
+- Multi-repository support with merged index
+- Versioned packages with `latest` support
+- `install.sh` to install your package, Includes running the LSPM nestedly to grab your deps.
+- Swap-friendly, streamable, and highly portable
+
+---
+
+## Installation
+
+```sh
+curl -fsSL (yeah frick, I havent made that yet, so just wait.) | sh
+
+# Bootstrap default repo
+lspm set
+lspm update
+````
+
+---
+
+## Usage
+
+### Package Operations
+
+```sh
+lspm add/install <package>[=<version>] [-y]    # Install a package
+lspm upgrade <package> [-y]                    # Upgrade a package
+lspm del/remove <package> [-y]                 # Remove a package
+lspm list                                      # List installed packages
+```
+
+### Repository Comamnds
+
+```sh
+lspm add-remote <url>                     # Add a repository (aliases: add-r)
+lspm remove-remote <url>                  # Remove a repository (aliases: del-r)
+lspm list-remotes                         # List all repositories
+lspm update                               # Fetch and merge indexes
+lspm set                                  # Add default LSPM repo
+```
+
+### Developer Commands
+
+```sh
+lspm init <package>                       # Initialize a new package skeleton
+```
+
+---
+
+## Package Structure
+
+Every package follows this layout:
+
+```
+<package>/
+  <version>/         # e.g., 2025-12-20 or latest
+    install.sh       # Script to install the package
+    remove.sh        # Script to remove the package
+    date.txt         # Optional for "latest" versions
+```
+
+* `latest` versions should include `date.txt` indicating the current version
+* Nested dependencies can be handled by calling LSPM within `install.sh`
+
+---
+
+## Example
+
+```sh
+lspm install hello       # Installs latest "hello" package
+hello                    # Runs installed program
+lspm remove hello        # Removes package
+```
+
+---
+
+## Contributing
+
+LSPM is designed to be forked and extended.
+To create your own package:
+
+```sh
+lspm init mypackage      # Creates a skeleton package
+```
+
+For detailed guidelines, see the development guide (link is broken temp)
+
+---
+
+## Notes
+
+* Use versioning with `package=<YYYY-MM-DD>` or rely on `latest`.
