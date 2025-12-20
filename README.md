@@ -28,6 +28,12 @@ lspm set
 
 # Update package list
 lspm update
+
+# Test LSPM
+lspm install hello -y
+
+# Now test the package
+hello
 ````
 
 ---
