@@ -21,7 +21,8 @@ It supports installing, upgrading, and removing packages, managing multiple repo
 
 ```sh
 # Install
-curl -fsSL https://raw.githubusercontent.com/lspm-pkg/lspm/refs/heads/main/install.sh | sh
+wget -qO- https://raw.githubusercontent.com/lspm-pkg/lspm/refs/heads/main/install.sh | sh
+
 
 # Bootstrap default repo
 lspm set
