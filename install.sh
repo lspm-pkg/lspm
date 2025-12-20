@@ -16,7 +16,7 @@ confirm() {
     read ans
     case "$ans" in
         y|Y) return 0 ;;
-        *) log "Aborted by user."; exit 1 ;;
+        *) echo "Aborted by user."; exit 1 ;;
     esac
 }
 
