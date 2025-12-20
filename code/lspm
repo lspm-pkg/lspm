@@ -188,19 +188,38 @@ remove_package() {
     pkg="$1"
     auto_yes="$2"
     confirm "Remove $pkg?" "$auto_yes"
-    ver_file="$LSPM_PACKAGES/$pkg/.version"
-    [ -f "$ver_file" ] && ver=$(cat "$ver_file") || ver=""
-    while read line; do
-        name=$(basename "$(dirname "$line")")
-        base=$(basename "$line")
-        if [ "$name" = "$pkg" ] && [ "$base" = "$ver" ]; then
-            remove_url="$line/remove.sh"
-            if wget -q -O "/tmp/lspm_remove.sh" "$remove_url"; then
-                chmod +x "/tmp/lspm_remove.sh"
-                sh "/tmp/lspm_remove.sh"
+    ver=""
+    [ -f "$LSPM_PACKAGES/$pkg/.version" ] && ver=$(cat "$LSPM_PACKAGES/$pkg/.version")
+    ran_remove="no"
+    if [ -n "$ver" ]; then
+        while read -r line; do
+            name=$(basename "$(dirname "$line")")
+            base=$(basename "$line")
+            if [ "$name" = "$pkg" ] && [ "$base" = "$ver" ]; then
+                log "Fetching remove.sh for $pkg $ver"
+                if wget -q -O /tmp/lspm_remove.sh "$line/remove.sh"; then
+                    chmod +x /tmp/lspm_remove.sh
+                    sh /tmp/lspm_remove.sh
+                    ran_remove="yes"
+                fi
+                break
             fi
-        fi
-    done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
+        done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
+    fi
+    if [ "$ran_remove" = "no" ]; then
+        while read -r line; do
+            name=$(basename "$(dirname "$line")")
+            base=$(basename "$line")
+            if [ "$name" = "$pkg" ] && [ "$base" = "latest" ]; then
+                log "Falling back to latest remove.sh for $pkg"
+                if wget -q -O /tmp/lspm_remove.sh "$line/remove.sh"; then
+                    chmod +x /tmp/lspm_remove.sh
+                    sh /tmp/lspm_remove.sh
+                fi
+                break
+            fi
+        done < "$INDEX_CACHE/merged_index.list" 2>/dev/null
+    fi
     rm -rf "$LSPM_PACKAGES/$pkg"
     tmpfile=$(mktemp)
     while IFS= read -r line; do
